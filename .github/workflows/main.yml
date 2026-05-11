@@ -1,0 +1,78 @@
+name: National Voter Portal CI/CD
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  backend-test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    - name: Install Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest httpx
+        # Install service dependencies
+        find services -name "requirements.txt" -exec pip install -r {} +
+    - name: Run Tests
+      run: pytest
+
+  frontend-build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: apps/frontend/package-lock.json
+    - name: Install Dependencies
+      working-directory: apps/frontend
+      run: npm install
+    - name: Build Next.js
+      working-directory: apps/frontend
+      run: npm run build
+
+  docker-build-push:
+    needs: [backend-test, frontend-build]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Login to DockerHub
+      uses: docker/login-action@v2
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+    - name: Build and Push Services
+      run: |
+        services=("auth-service" "voter-service" "election-service" "biometric-service" "analytics-service")
+        for svc in "${services[@]}"; do
+          docker build -t voter-registry/$svc:latest ./services/$svc
+          docker push voter-registry/$svc:latest
+        done
+    - name: Build and Push Frontend
+      run: |
+        docker build -t voter-registry/frontend:latest ./apps/frontend
+        docker push voter-registry/frontend:latest
+
+  deploy-k8s:
+    needs: docker-build-push
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Kubeconfig
+      run: echo "${{ secrets.KUBECONFIG }}" > $HOME/.kube/config
+    - name: Deploy to K8s
+      run: |
+        kubectl apply -f infrastructure/k8s/manifests/
+        kubectl rollout restart deployment/auth-service
+        kubectl rollout restart deployment/voter-service

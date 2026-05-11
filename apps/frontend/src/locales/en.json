@@ -1,0 +1,23 @@
+{
+  "common": {
+    "voter_id": "EPIC Card",
+    "constituency": "Constituency",
+    "polling_station": "Polling Booth",
+    "register": "Register",
+    "login": "Login",
+    "search": "Search"
+  },
+  "roles": {
+    "CEC": "Chief Election Commissioner",
+    "BLO": "Booth Level Officer",
+    "RO": "Returning Officer",
+    "DEO": "District Election Officer"
+  },
+  "registration": {
+    "title": "Voter Registration (Form 6)",
+    "father_name": "Father's Name",
+    "mother_name": "Mother's Name",
+    "aadhaar_label": "Aadhaar Number (Last 4 Digits)",
+    "constituency_selection": "Select Assembly Constituency (Vidhan Sabha)"
+  }
+}
