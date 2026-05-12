@@ -17,7 +17,19 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = os.getenv("DATABASE_URL")
     
+    def __init__(self, **values):
+        super().__init__(**values)
+        if not self.DATABASE_URL:
+             # Try loading manually if Pydantic didn't pick it up
+             from dotenv import load_dotenv
+             load_dotenv()
+             load_dotenv("../../.env")
+             self.DATABASE_URL = os.getenv("DATABASE_URL")
+             if not self.DATABASE_URL:
+                 raise ValueError("DATABASE_URL environment variable is not set")
+    
     class Config:
         case_sensitive = True
+        env_file = ".env"
 
 settings = Settings()

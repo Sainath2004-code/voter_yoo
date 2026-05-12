@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  # API Gateway
+  gateway:
+    extends:
+      file: infrastructure/docker/docker-compose.infra.yml
+      service: kong
+    ports:
+      - "80:8000"
+    depends_on:
+      - auth-service
+      - voter-service
+
+  # Microservices
+  auth-service:
+    build:
+      context: ./services/auth-service
+    env_file: .env
+    networks:
+      - voter-network
+
+  voter-service:
+    build:
+      context: ./services/voter-service
+    env_file: .env
+    networks:
+      - voter-network
+
+  # Election Service (Placeholder until Dockerfile added)
+  # election-service:
+  #   build: ./services/election-service
+  #   env_file: .env
+  #   networks:
+  #     - voter-network
+
+networks:
+  voter-network:
+    external: true
+    name: voter-yoo_voter-network

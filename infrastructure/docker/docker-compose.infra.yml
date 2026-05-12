@@ -1,21 +1,6 @@
 version: '3.8'
 
 services:
-  # Primary Database
-  postgres:
-    image: postgres:15-alpine
-    container_name: voter-db
-    environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: voter_secure_password
-      POSTGRES_DB: voter_db
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - voter-network
-
   # Caching and Rate Limiting
   redis:
     image: redis:7-alpine
@@ -61,36 +46,11 @@ services:
     networks:
       - voter-network
 
-  # API Gateway (Kong)
-  kong-db:
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_USER: kong
-      POSTGRES_DB: kong
-      POSTGRES_PASSWORD: kong
-    networks:
-      - voter-network
-
-  kong-migrations:
-    image: kong:latest
-    command: kong migrations bootstrap
-    depends_on:
-      - kong-db
-    environment:
-      KONG_DATABASE: postgres
-      KONG_PG_HOST: kong-db
-      KONG_PG_PASSWORD: kong
-    networks:
-      - voter-network
-
+  # API Gateway (Kong) - Now configured for Supabase backend (logic to be updated in Kong config)
   kong:
     image: kong:latest
-    depends_on:
-      - kong-db
     environment:
-      KONG_DATABASE: postgres
-      KONG_PG_HOST: kong-db
-      KONG_PG_PASSWORD: kong
+      KONG_DATABASE: "off" # Moving to dbless for gateway if DB is in Supabase
       KONG_PROXY_ACCESS_LOG: /dev/stdout
       KONG_ADMIN_ACCESS_LOG: /dev/stdout
       KONG_PROXY_ERROR_LOG: /dev/stderr
@@ -109,5 +69,4 @@ networks:
     driver: bridge
 
 volumes:
-  postgres_data:
   minio_data:
