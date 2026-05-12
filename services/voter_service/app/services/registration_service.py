@@ -41,6 +41,24 @@ class RegistrationService:
         application.status = ApplicationStatus.BLO_VERIFICATION
         
         db.commit()
+
+        # --- Fire async notification (non-blocking) ---
+        try:
+            import sys, os
+            sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../../..")))
+            from services.notification_service.app.services.dispatcher import NotificationDispatcher
+            from shared.models.user import User
+            user = db.query(User).filter(User.id == user_id).first()
+            if user:
+                NotificationDispatcher.voter_application_submitted(
+                    email=user.email,
+                    phone=getattr(user, "phone", ""),
+                    user_id=user_id,
+                    application_id=application.id,
+                )
+        except Exception:
+            pass  # Notification failure must never block registration
+
         return application
 
     @staticmethod
