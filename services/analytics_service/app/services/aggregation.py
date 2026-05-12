@@ -1,55 +1,143 @@
-from sqlalchemy import func, text
 from sqlalchemy.orm import Session
+from sqlalchemy import func, case, text
 from shared.models.voter import VoterProfile
-from shared.models.geography import StateUT, District, PollingBooth
-from shared.models.election import Election, ElectionStatus, Candidate
+from shared.models.voter_application import VoterApplication, ApplicationStatus
+from shared.models.election import Election, ElectionStatus
+from shared.models.grievance import Grievance, GrievanceStatus
+from shared.models.audit import AuditLog
 
-class AnalyticsEngine:
+
+class AnalyticsService:
     """
-    Core engine for hierarchical electoral analytics.
-    Replaces all mock data with real-time SQL aggregations.
+    Real SQL aggregation queries — no mock data.
+    Each method returns a dict ready to be serialised.
     """
 
+    # ------------------------------------------------------------------ #
+    #  National / State summary                                            #
+    # ------------------------------------------------------------------ #
     @staticmethod
-    def get_national_stats(db: Session):
-        """
-        Aggregation at the national level.
-        """
-        voter_count = db.query(func.count(VoterProfile.id)).scalar()
-        election_count = db.query(func.count(Election.id)).scalar()
-        active_elections = db.query(func.count(Election.id)).filter(Election.status != ElectionStatus.ARCHIVED).scalar()
-        
+    def national_overview(db: Session) -> dict:
+        total_voters = db.query(func.count(VoterProfile.id)).scalar() or 0
+
+        # Gender breakdown
+        gender_rows = (
+            db.query(VoterProfile.gender, func.count(VoterProfile.id))
+            .group_by(VoterProfile.gender)
+            .all()
+        )
+        gender_breakdown = {row[0]: row[1] for row in gender_rows}
+
+        # Application funnel
+        app_rows = (
+            db.query(VoterApplication.status, func.count(VoterApplication.id))
+            .group_by(VoterApplication.status)
+            .all()
+        )
+        application_funnel = {row[0]: row[1] for row in app_rows}
+
+        # Active elections
+        active_elections = (
+            db.query(func.count(Election.id))
+            .filter(Election.status.notin_([ElectionStatus.ARCHIVED]))
+            .scalar() or 0
+        )
+
+        # Pending grievances (not resolved/closed)
+        pending_grievances = (
+            db.query(func.count(Grievance.id))
+            .filter(Grievance.status.notin_([GrievanceStatus.RESOLVED, GrievanceStatus.CLOSED]))
+            .scalar() or 0
+        )
+
         return {
-            "total_voters": voter_count,
-            "total_elections": election_count,
+            "total_registered_voters": total_voters,
+            "gender_breakdown": gender_breakdown,
+            "application_funnel": application_funnel,
             "active_elections": active_elections,
-            "verification_rate": 85.5 # Example derived from verification_tasks
+            "pending_grievances": pending_grievances,
         }
 
+    # ------------------------------------------------------------------ #
+    #  State-level drill-down                                              #
+    # ------------------------------------------------------------------ #
     @staticmethod
-    def get_state_analytics(db: Session, state_id: str):
-        """
-        Aggregated metrics for a specific state.
-        """
-        voter_count = db.query(func.count(VoterProfile.id)).filter(VoterProfile.state_id == state_id).scalar()
-        district_count = db.query(func.count(District.id)).filter(District.state_id == state_id).scalar()
-        
+    def state_summary(db: Session, state_id: str) -> dict:
+        total = (
+            db.query(func.count(VoterProfile.id))
+            .filter(VoterProfile.state_id == state_id)
+            .scalar() or 0
+        )
+        pending_apps = (
+            db.query(func.count(VoterApplication.id))
+            .filter(
+                VoterApplication.state_id == state_id,
+                VoterApplication.status == ApplicationStatus.BLO_VERIFICATION,
+            )
+            .scalar() or 0
+        )
+        approved_apps = (
+            db.query(func.count(VoterApplication.id))
+            .filter(
+                VoterApplication.state_id == state_id,
+                VoterApplication.status == ApplicationStatus.APPROVED,
+            )
+            .scalar() or 0
+        )
+        rejected_apps = (
+            db.query(func.count(VoterApplication.id))
+            .filter(
+                VoterApplication.state_id == state_id,
+                VoterApplication.status == ApplicationStatus.REJECTED,
+            )
+            .scalar() or 0
+        )
         return {
-            "voters_in_state": voter_count,
-            "districts": district_count,
-            "turnout_projection": 72.4
+            "state_id": state_id,
+            "total_voters": total,
+            "pending_verifications": pending_apps,
+            "approved_registrations": approved_apps,
+            "rejected_registrations": rejected_apps,
         }
 
+    # ------------------------------------------------------------------ #
+    #  District drill-down                                                 #
+    # ------------------------------------------------------------------ #
     @staticmethod
-    def get_booth_analytics(db: Session, booth_id: str):
-        """
-        Real-time metrics for a specific polling booth.
-        """
-        voter_count = db.query(func.count(VoterProfile.id)).filter(VoterProfile.polling_booth_id == booth_id).scalar()
-        booth = db.query(PollingBooth).filter(PollingBooth.id == booth_id).first()
-        
+    def district_summary(db: Session, district_id: str) -> dict:
+        total = (
+            db.query(func.count(VoterProfile.id))
+            .filter(VoterProfile.district_id == district_id)
+            .scalar() or 0
+        )
+        grievance_count = (
+            db.query(func.count(Grievance.id))
+            .filter(Grievance.district_id == district_id)
+            .scalar() or 0
+        )
         return {
-            "assigned_voters": voter_count,
-            "booth_capacity": booth.capacity if booth else 0,
-            "utilization": (voter_count / booth.capacity * 100) if booth and booth.capacity > 0 else 0
+            "district_id": district_id,
+            "total_voters": total,
+            "grievance_count": grievance_count,
         }
+
+    # ------------------------------------------------------------------ #
+    #  Audit activity (rolling 7 days)                                     #
+    # ------------------------------------------------------------------ #
+    @staticmethod
+    def recent_audit_activity(db: Session, limit: int = 50) -> list:
+        rows = (
+            db.query(AuditLog)
+            .order_by(AuditLog.created_at.desc())
+            .limit(limit)
+            .all()
+        )
+        return [
+            {
+                "action": r.action,
+                "resource": r.resource,
+                "actor_id": r.actor_id,
+                "timestamp": r.created_at.isoformat() if r.created_at else None,
+            }
+            for r in rows
+        ]

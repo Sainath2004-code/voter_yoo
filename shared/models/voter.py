@@ -31,7 +31,7 @@ class VoterProfile(BaseModel):
     pincode = Column(String, nullable=False)
     
     # Strict Hierarchy Foreign Keys
-    state_id = Column(String, ForeignKey("states_uts.id"), nullable=False)
+    state_id = Column(String, ForeignKey("states.id"), nullable=False)
     district_id = Column(String, ForeignKey("districts.id"), nullable=False)
     pc_id = Column(String, ForeignKey("parliamentary_constituencies.id"), nullable=False)
     ac_id = Column(String, ForeignKey("assembly_constituencies.id"), nullable=False)
@@ -48,7 +48,7 @@ class VoterProfile(BaseModel):
     is_verified = Column(String, default="false") # True when approved and EPIC generated
     
     # Relationships
-    state = relationship("StateUT")
+    state = relationship("State")
     district = relationship("District")
     parliamentary_constituency = relationship("ParliamentaryConstituency")
     assembly_constituency = relationship("AssemblyConstituency")

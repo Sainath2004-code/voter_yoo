@@ -9,6 +9,8 @@ class UserBase(BaseModel):
     is_active: Optional[bool] = True
     full_name: Optional[str] = None
     role: Optional[UserRole] = UserRole.VOTER
+    scope_type: Optional[str] = None
+    scope_id: Optional[str] = None
 
 # Properties to receive via API on creation
 class UserCreate(UserBase):

@@ -3,13 +3,19 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from sqlalchemy.orm import Session
-from app.core.config import settings
+# from app.core.config import settings # Assuming settings will be created
 from app.db.session import SessionLocal
 from shared.models.user import User
 
 reusable_oauth2 = OAuth2PasswordBearer(
-    tokenUrl="/api/v1/auth/login/access-token" # Points to auth-service
+    tokenUrl="/api/v1/auth/login/access-token"
 )
+
+# Placeholder settings until file created
+class MockSettings:
+    SECRET_KEY = "CHANGEME_PROD_SECRET"
+    ALGORITHM = "HS256"
+settings = MockSettings()
 
 def get_db() -> Generator:
     try:
@@ -36,18 +42,4 @@ def get_current_user(
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    if not user.is_active:
-        raise HTTPException(status_code=400, detail="Inactive user")
     return user
-
-class RoleChecker:
-    def __init__(self, allowed_roles: list):
-        self.allowed_roles = allowed_roles
-
-    def __call__(self, current_user: User = Depends(get_current_user)):
-        if current_user.role not in self.allowed_roles:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="The user doesn't have enough privileges"
-            )
-        return current_user

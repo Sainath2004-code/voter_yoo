@@ -3,8 +3,8 @@ from sqlalchemy.orm import relationship
 from shared.models.base import BaseModel
 import uuid
 
-class StateUT(BaseModel):
-    __tablename__ = "states_uts"
+class State(BaseModel):
+    __tablename__ = "states"
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     name = Column(String, nullable=False, unique=True)
     code = Column(String, nullable=False, unique=True) # ISO or ECI code
@@ -15,11 +15,11 @@ class StateUT(BaseModel):
 class District(BaseModel):
     __tablename__ = "districts"
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    state_id = Column(String, ForeignKey("states_uts.id"))
+    state_id = Column(String, ForeignKey("states.id"))
     name = Column(String, nullable=False)
     code = Column(String, nullable=False)
     
-    state = relationship("StateUT", back_populates="districts")
+    state = relationship("State", back_populates="districts")
     parliamentary_constituencies = relationship("ParliamentaryConstituency", back_populates="district")
 
 class ParliamentaryConstituency(BaseModel):
@@ -56,7 +56,7 @@ class PollingBooth(BaseModel):
     address = Column(String)
     latitude = Column(Float)
     longitude = Column(Float)
-    capacity = Column(Integer)
+    capacity = Column(Integer, default=1500)
     voter_count = Column(Integer, default=0)
     
     assembly_constituency = relationship("AssemblyConstituency", back_populates="polling_booths")

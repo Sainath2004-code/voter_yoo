@@ -8,7 +8,7 @@ from app.db.session import SessionLocal
 from shared.models.user import User
 
 reusable_oauth2 = OAuth2PasswordBearer(
-    tokenUrl="/api/v1/auth/login/access-token" # Points to auth-service
+    tokenUrl="/api/v1/auth/login/access-token"
 )
 
 def get_db() -> Generator:
