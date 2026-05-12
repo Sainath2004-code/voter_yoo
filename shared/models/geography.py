@@ -1,9 +1,9 @@
-from sqlalchemy import Column, String, Integer, ForeignKey, Float
+from sqlalchemy import Column, String, Integer, ForeignKey, Float, Boolean
 from sqlalchemy.orm import relationship
-from app.db.base_class import Base
+from shared.models.base import BaseModel
 import uuid
 
-class StateUT(Base):
+class StateUT(BaseModel):
     __tablename__ = "states_uts"
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     name = Column(String, nullable=False, unique=True)
@@ -12,7 +12,7 @@ class StateUT(Base):
     
     districts = relationship("District", back_populates="state")
 
-class District(Base):
+class District(BaseModel):
     __tablename__ = "districts"
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     state_id = Column(String, ForeignKey("states_uts.id"))
@@ -20,40 +20,43 @@ class District(Base):
     code = Column(String, nullable=False)
     
     state = relationship("StateUT", back_populates="districts")
-    taluks = relationship("Taluk", back_populates="district")
+    parliamentary_constituencies = relationship("ParliamentaryConstituency", back_populates="district")
 
-class Taluk(Base):
-    __tablename__ = "taluks"
+class ParliamentaryConstituency(BaseModel):
+    __tablename__ = "parliamentary_constituencies"
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     district_id = Column(String, ForeignKey("districts.id"))
     name = Column(String, nullable=False)
+    code = Column(String, nullable=False, unique=True)
+    is_reserved = Column(Boolean, default=False)
+    reservation_category = Column(String) # 'SC', 'ST', 'General'
+    delimitation_version = Column(String)
     
-    district = relationship("District", back_populates="taluks")
+    district = relationship("District", back_populates="parliamentary_constituencies")
+    assembly_constituencies = relationship("AssemblyConstituency", back_populates="parliamentary_constituency")
 
-class LokSabhaConstituency(Base):
-    __tablename__ = "lok_sabha_constituencies"
+class AssemblyConstituency(BaseModel):
+    __tablename__ = "assembly_constituencies"
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    state_id = Column(String, ForeignKey("states_uts.id"))
+    pc_id = Column(String, ForeignKey("parliamentary_constituencies.id"))
     name = Column(String, nullable=False)
-    code = Column(String, nullable=False)
-    is_reserved = Column(String) # 'SC', 'ST', 'General'
+    code = Column(String, nullable=False, unique=True)
+    is_reserved = Column(Boolean, default=False)
+    reservation_category = Column(String)
+    
+    parliamentary_constituency = relationship("ParliamentaryConstituency", back_populates="assembly_constituencies")
+    polling_booths = relationship("PollingBooth", back_populates="assembly_constituency")
 
-class VidhanSabhaConstituency(Base):
-    __tablename__ = "vidhan_sabha_constituencies"
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    state_id = Column(String, ForeignKey("states_uts.id"))
-    district_id = Column(String, ForeignKey("districts.id"))
-    name = Column(String, nullable=False)
-    code = Column(String, nullable=False)
-    ls_constituency_id = Column(String, ForeignKey("lok_sabha_constituencies.id"))
-
-class PollingBooth(Base):
+class PollingBooth(BaseModel):
     __tablename__ = "polling_booths"
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    vs_constituency_id = Column(String, ForeignKey("vidhan_sabha_constituencies.id"))
+    ac_id = Column(String, ForeignKey("assembly_constituencies.id"))
     booth_no = Column(Integer, nullable=False)
     name = Column(String, nullable=False)
     address = Column(String)
     latitude = Column(Float)
     longitude = Column(Float)
-    blo_id = Column(String) # Link to User model
+    capacity = Column(Integer)
+    voter_count = Column(Integer, default=0)
+    
+    assembly_constituency = relationship("AssemblyConstituency", back_populates="polling_booths")

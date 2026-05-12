@@ -1,40 +1,102 @@
 version: '3.8'
 
 services:
-  # API Gateway
-  gateway:
-    extends:
-      file: infrastructure/docker/docker-compose.infra.yml
-      service: kong
+  # Infrastructure
+  redis:
+    image: redis:7-alpine
     ports:
-      - "80:8000"
-    depends_on:
-      - auth-service
-      - voter-service
+      - "6379:6379"
+    restart: always
 
   # Microservices
-  auth-service:
+  auth_service:
     build:
-      context: ./services/auth-service
+      context: .
+      dockerfile: services/auth_service/Dockerfile
     env_file: .env
-    networks:
-      - voter-network
+    depends_on:
+      - redis
+    volumes:
+      - ./shared:/app/shared
 
-  voter-service:
+  voter_service:
     build:
-      context: ./services/voter-service
+      context: .
+      dockerfile: services/voter_service/Dockerfile
     env_file: .env
-    networks:
-      - voter-network
+    depends_on:
+      - redis
+    volumes:
+      - ./shared:/app/shared
 
-  # Election Service (Placeholder until Dockerfile added)
-  # election-service:
-  #   build: ./services/election-service
-  #   env_file: .env
-  #   networks:
-  #     - voter-network
+  election_service:
+    build:
+      context: .
+      dockerfile: services/election_service/Dockerfile
+    env_file: .env
+    volumes:
+      - ./shared:/app/shared
 
-networks:
-  voter-network:
-    external: true
-    name: voter-yoo_voter-network
+  workflow_service:
+    build:
+      context: .
+      dockerfile: services/workflow_service/Dockerfile
+    env_file: .env
+    volumes:
+      - ./shared:/app/shared
+
+  biometric_service:
+    build:
+      context: .
+      dockerfile: services/biometric_service/Dockerfile
+    env_file: .env
+    volumes:
+      - ./shared:/app/shared
+
+  audit_service:
+    build:
+      context: .
+      dockerfile: services/audit_service/Dockerfile
+    env_file: .env
+    volumes:
+      - ./shared:/app/shared
+
+  analytics_service:
+    build:
+      context: .
+      dockerfile: services/analytics_service/Dockerfile
+    env_file: .env
+    depends_on:
+      - redis
+    volumes:
+      - ./shared:/app/shared
+
+  # Celery Workers
+  worker_voter:
+    build:
+      context: .
+      dockerfile: services/voter_service/Dockerfile
+    command: celery -A app.core.celery_app worker --loglevel=info
+    env_file: .env
+    depends_on:
+      - redis
+    volumes:
+      - ./shared:/app/shared
+
+  worker_notifications:
+    build:
+      context: .
+      dockerfile: services/notification_service/Dockerfile
+    command: celery -A app.core.celery_app worker --loglevel=info
+    env_file: .env
+    depends_on:
+      - redis
+    volumes:
+      - ./shared:/app/shared
+
+  # Frontend
+  frontend:
+    build: ./apps/frontend
+    ports:
+      - "3000:3000"
+    env_file: .env
